@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { ChatRoom, ChatMessage, ChatUser } from "@/types/chat";
 
@@ -92,6 +91,9 @@ export const createDirectMessageRoom = async (
 
   return data;
 };
+
+// Export createDirectMessageRoom as createChatRoom for backward compatibility
+export const createChatRoom = createDirectMessageRoom;
 
 export const fetchChatMessages = async (roomId: string): Promise<ChatMessage[]> => {
   const { data, error } = await supabase
