@@ -1,0 +1,146 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 20 100% 97%;
+    --foreground: 24 70% 20%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 24 70% 20%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 24 70% 20%;
+
+    --primary: 24 90% 45%;
+    --primary-foreground: 24 30% 98%;
+
+    --secondary: 30 100% 92%;
+    --secondary-foreground: 24 90% 45%;
+
+    --muted: 24 30% 96%;
+    --muted-foreground: 24 30% 40%;
+
+    --accent: 30 100% 92%;
+    --accent-foreground: 24 90% 45%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 30 80% 90%;
+    --input: 30 80% 90%;
+    --ring: 24 90% 45%;
+
+    --radius: 0.5rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif;
+  }
+
+  /* Improved focus styles for accessibility */
+  :focus-visible {
+    @apply outline-none ring-2 ring-clay ring-offset-2 ring-offset-background;
+  }
+}
+
+/* Custom styles for better spacing and transitions */
+@layer components {
+  .page-container {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8;
+  }
+  
+  .section {
+    @apply py-16 md:py-24;
+  }
+  
+  .section-title {
+    @apply text-3xl md:text-4xl font-serif font-medium text-espresso mb-6;
+  }
+  
+  .section-subtitle {
+    @apply text-sm uppercase tracking-widest text-clay mb-2 font-medium;
+  }
+  
+  /* Button styles */
+  .btn {
+    @apply inline-flex items-center justify-center rounded-md font-medium transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-clay focus:ring-offset-2;
+  }
+  
+  .btn-primary {
+    @apply bg-espresso text-white hover:bg-clay px-6 py-3;
+  }
+  
+  .btn-secondary {
+    @apply border border-taupe text-espresso hover:bg-sand hover:border-clay px-6 py-3;
+  }
+  
+  .btn-sm {
+    @apply px-4 py-2 text-sm;
+  }
+  
+  /* Card styles */
+  .card {
+    @apply bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all duration-300;
+  }
+  
+  .card-hover {
+    @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-md;
+  }
+  
+  /* Animation utilities */
+  .animate-hover-lift {
+    @apply transition-transform duration-300 hover:-translate-y-1;
+  }
+  
+  .animate-hover-scale {
+    @apply transition-transform duration-300 hover:scale-105;
+  }
+  
+  .animate-fade-in {
+    animation: fadeIn 0.6s ease-in-out forwards;
+  }
+  
+  .animate-slide-up {
+    animation: slideUp 0.6s ease-in-out forwards;
+  }
+  
+  /* Glass effect */
+  .glass {
+    @apply bg-white/70 backdrop-blur-md;
+  }
+  
+  /* Text gradient */
+  .text-gradient {
+    @apply bg-gradient-to-r from-espresso to-clay bg-clip-text text-transparent;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-cream;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-taupe/50 rounded-full hover:bg-taupe transition-colors duration-300;
+}
