@@ -1,6 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { ChatRoom, ChatMessage, ChatUser } from "@/types/chat";
+import { useAuth } from "@/contexts/AuthContext";
 
 export const fetchChatRooms = async (): Promise<ChatRoom[]> => {
   const { data, error } = await supabase
@@ -16,17 +17,71 @@ export const fetchChatRooms = async (): Promise<ChatRoom[]> => {
   return data || [];
 };
 
-export const createChatRoom = async (name: string): Promise<ChatRoom> => {
+export const fetchAdmins = async (): Promise<ChatUser[]> => {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, full_name, avatar_url")
+    .eq("role", "admin");
+
+  if (error) {
+    console.error("Error fetching admins:", error);
+    throw error;
+  }
+
+  return data || [];
+};
+
+export const createDirectMessageRoom = async (
+  adminId: string,
+  isAdminCreating: boolean = false
+): Promise<ChatRoom> => {
   // Get the current user
   const { data: { user } } = await supabase.auth.getUser();
   
   if (!user) throw new Error("User must be logged in to create a chat room");
 
+  // Check if a direct chat already exists between these users
+  const { data: existingChats, error: checkError } = await supabase
+    .from("chat_rooms")
+    .select("*")
+    .or(`created_by.eq.${user.id},created_for.eq.${user.id}`)
+    .or(`created_by.eq.${adminId},created_for.eq.${adminId}`)
+    .limit(1);
+
+  if (checkError) {
+    console.error("Error checking existing chats:", checkError);
+    throw checkError;
+  }
+
+  // If chat already exists, return it
+  if (existingChats && existingChats.length > 0) {
+    return existingChats[0];
+  }
+
+  // If no existing chat, create a new one
+  let roomName = '';
+  let createdBy = '';
+  let createdFor = '';
+  
+  if (isAdminCreating) {
+    // Admin creating chat with user
+    roomName = `Admin Support`;
+    createdBy = user.id;
+    createdFor = adminId; // actually the user ID in this context
+  } else {
+    // User creating chat with admin
+    roomName = `Admin Support`;
+    createdBy = user.id;
+    createdFor = adminId;
+  }
+  
   const { data, error } = await supabase
     .from("chat_rooms")
     .insert({ 
-      name, 
-      created_by: user.id 
+      name: roomName, 
+      created_by: createdBy,
+      created_for: createdFor,
+      is_admin_created: isAdminCreating
     })
     .select()
     .single();
@@ -81,7 +136,7 @@ export const sendChatMessage = async (roomId: string, content: string): Promise<
 export const getChatUser = async (userId: string): Promise<ChatUser | null> => {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, full_name, avatar_url")
+    .select("id, full_name, avatar_url, role")
     .eq("id", userId)
     .single();
 

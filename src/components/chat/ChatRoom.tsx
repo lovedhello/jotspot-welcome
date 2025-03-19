@@ -20,6 +20,7 @@ const ChatRoomComponent: React.FC<ChatRoomProps> = ({ room }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [users, setUsers] = useState<Record<string, ChatUser | null>>({});
+  const [chatPartner, setChatPartner] = useState<ChatUser | null>(null);
   const { user } = useAuth();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -35,6 +36,15 @@ const ChatRoomComponent: React.FC<ChatRoomProps> = ({ room }) => {
         // Fetch user info for each unique user
         const userIds = Array.from(new Set(messages.map(msg => msg.user_id)));
         await loadUserData(userIds);
+        
+        // Determine chat partner
+        if (user) {
+          const partnerId = room.created_by === user.id ? room.created_for : room.created_by;
+          if (partnerId) {
+            const partnerData = await getChatUser(partnerId);
+            setChatPartner(partnerData);
+          }
+        }
       } catch (error) {
         console.error("Error loading messages:", error);
         toast({
@@ -48,7 +58,7 @@ const ChatRoomComponent: React.FC<ChatRoomProps> = ({ room }) => {
     };
     
     loadMessages();
-  }, [room.id]);
+  }, [room.id, user]);
 
   // Helper function to load user data
   const loadUserData = async (userIds: string[]) => {
@@ -126,7 +136,9 @@ const ChatRoomComponent: React.FC<ChatRoomProps> = ({ room }) => {
   return (
     <div className="flex flex-col h-full">
       <div className="p-4 border-b">
-        <h2 className="text-xl font-serif font-medium">{room.name}</h2>
+        <h2 className="text-xl font-serif font-medium">
+          {chatPartner ? `Chat with ${chatPartner.full_name || 'User'}` : room.name}
+        </h2>
       </div>
       
       <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
@@ -136,7 +148,7 @@ const ChatRoomComponent: React.FC<ChatRoomProps> = ({ room }) => {
           </div>
         ) : messages.length === 0 ? (
           <div className="flex justify-center p-4">
-            <p className="text-muted-foreground">No messages yet. Be the first to send one!</p>
+            <p className="text-muted-foreground">No messages yet. Start the conversation!</p>
           </div>
         ) : (
           <>

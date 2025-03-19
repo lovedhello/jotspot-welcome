@@ -4,6 +4,8 @@ export interface ChatRoom {
   name: string;
   created_at: string;
   created_by: string;
+  created_for?: string;
+  is_admin_created?: boolean;
 }
 
 export interface ChatMessage {
@@ -18,4 +20,5 @@ export interface ChatUser {
   id: string;
   full_name?: string;
   avatar_url?: string;
+  role?: string;
 }
