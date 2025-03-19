@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { ChatRoom, ChatMessage, ChatUser } from "@/types/chat";
 
@@ -16,6 +17,7 @@ export const fetchChatRooms = async (): Promise<ChatRoom[]> => {
 };
 
 export const fetchAdmins = async (): Promise<ChatUser[]> => {
+  // Use a more robust query to fetch admins
   const { data, error } = await supabase
     .from("profiles")
     .select("id, full_name, avatar_url")
@@ -26,6 +28,23 @@ export const fetchAdmins = async (): Promise<ChatUser[]> => {
     throw error;
   }
 
+  console.log("Fetched admins:", data);
+  return data || [];
+};
+
+export const fetchUsers = async (): Promise<ChatUser[]> => {
+  // Add a new function to fetch regular users
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, full_name, avatar_url")
+    .eq("role", "user");
+
+  if (error) {
+    console.error("Error fetching users:", error);
+    throw error;
+  }
+
+  console.log("Fetched users:", data);
   return data || [];
 };
 

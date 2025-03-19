@@ -30,6 +30,7 @@ const ChatRoomList: React.FC<ChatRoomListProps> = ({
     
     try {
       setIsCreatingRoom(true);
+      // Use the exported createChatRoom function
       await createChatRoom(newRoomName);
       setNewRoomName("");
       onRoomsUpdated();

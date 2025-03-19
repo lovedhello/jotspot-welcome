@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { ChatRoom, ChatUser } from "@/types/chat";
-import { fetchChatRooms, fetchAdmins, createDirectMessageRoom } from "@/services/chatService";
+import { fetchChatRooms, fetchAdmins, fetchUsers, createDirectMessageRoom } from "@/services/chatService";
 import ChatRoomComponent from "./ChatRoomComponent";
 import { Button } from "@/components/ui/button";
 import { LogIn, MessageSquare } from "lucide-react";
@@ -11,7 +11,6 @@ import { toast } from "@/hooks/use-toast";
 import { useAdmin } from "@/hooks/use-admin";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { supabase } from "@/integrations/supabase/client";
 
 const Chat: React.FC = () => {
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
@@ -36,40 +35,38 @@ const Chat: React.FC = () => {
         return;
       }
       
-      // Fetch all chat rooms (RLS will filter them based on the user's permissions)
+      // Fetch all chat rooms
       const fetchedRooms = await fetchChatRooms();
       
-      // For regular users, filter rooms where they are created_by or created_for
+      // Filter rooms based on user role
       if (!isAdmin) {
+        // For regular users, only show rooms where they are involved
         const userRooms = fetchedRooms.filter(room => 
           room.created_by === user.id || room.created_for === user.id
         );
+        console.log("User rooms:", userRooms);
         setRooms(userRooms);
       } else {
-        // Admins can see all rooms
+        // For admins, show all rooms
+        console.log("Admin rooms:", fetchedRooms);
         setRooms(fetchedRooms);
       }
       
-      // Select the first room if we don't have an active room
+      // Select the first room if we don't have an active room and there are rooms available
       if (fetchedRooms.length > 0 && !activeRoomId) {
         setActiveRoomId(fetchedRooms[0].id);
       }
 
-      // If admin, fetch list of users they can message
+      // Fetch appropriate user lists based on role
       if (isAdmin) {
-        const { data: usersList, error } = await supabase
-          .from("profiles")
-          .select("id, full_name, avatar_url")
-          .eq("role", "user");
-        
-        if (!error && usersList) {
-          setUsers(usersList);
-        } else {
-          console.error("Error fetching users:", error);
-        }
+        // Admins need to see regular users
+        const usersList = await fetchUsers();
+        console.log("Users for admin:", usersList);
+        setUsers(usersList);
       } else {
-        // If regular user, fetch admins they can message
+        // Regular users need to see admins
         const adminsList = await fetchAdmins();
+        console.log("Admins for user:", adminsList);
         setAdmins(adminsList);
       }
     } catch (error) {
