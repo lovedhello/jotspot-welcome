@@ -3,8 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { ChatRoom, ChatUser } from "@/types/chat";
 import { fetchChatRooms, fetchAdmins, createDirectMessageRoom } from "@/services/chatService";
-import ChatRoomList from "./ChatRoomList";
-import ChatRoomComponent from "./ChatRoom";
+import ChatRoomComponent from "./ChatRoomComponent";
 import { Button } from "@/components/ui/button";
 import { LogIn, MessageSquare } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -12,6 +11,7 @@ import { toast } from "@/hooks/use-toast";
 import { useAdmin } from "@/hooks/use-admin";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { supabase } from "@/integrations/supabase/client";
 
 const Chat: React.FC = () => {
   const [rooms, setRooms] = useState<ChatRoom[]>([]);

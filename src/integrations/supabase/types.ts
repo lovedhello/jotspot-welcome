@@ -45,19 +45,25 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string
+          created_for: string | null
           id: string
+          is_admin_created: boolean | null
           name: string
         }
         Insert: {
           created_at?: string
           created_by: string
+          created_for?: string | null
           id?: string
+          is_admin_created?: boolean | null
           name: string
         }
         Update: {
           created_at?: string
           created_by?: string
+          created_for?: string | null
           id?: string
+          is_admin_created?: boolean | null
           name?: string
         }
         Relationships: []
@@ -217,10 +223,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      is_admin: {
-        Args: Record<PropertyKey, never>
-        Returns: boolean
-      }
+      is_admin:
+        | {
+            Args: Record<PropertyKey, never>
+            Returns: boolean
+          }
+        | {
+            Args: {
+              uid: string
+            }
+            Returns: boolean
+          }
     }
     Enums: {
       user_role: "user" | "admin"
