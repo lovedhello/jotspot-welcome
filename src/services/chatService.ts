@@ -1,7 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { ChatRoom, ChatMessage, ChatUser } from "@/types/chat";
-import { useAuth } from "@/contexts/AuthContext";
 
 export const fetchChatRooms = async (): Promise<ChatRoom[]> => {
   const { data, error } = await supabase

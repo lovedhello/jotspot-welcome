@@ -30,8 +30,25 @@ const Chat: React.FC = () => {
   const loadRooms = async () => {
     try {
       setIsLoading(true);
+      
+      if (!user) {
+        setRooms([]);
+        return;
+      }
+      
+      // Fetch all chat rooms (RLS will filter them based on the user's permissions)
       const fetchedRooms = await fetchChatRooms();
-      setRooms(fetchedRooms);
+      
+      // For regular users, filter rooms where they are created_by or created_for
+      if (!isAdmin) {
+        const userRooms = fetchedRooms.filter(room => 
+          room.created_by === user.id || room.created_for === user.id
+        );
+        setRooms(userRooms);
+      } else {
+        // Admins can see all rooms
+        setRooms(fetchedRooms);
+      }
       
       // Select the first room if we don't have an active room
       if (fetchedRooms.length > 0 && !activeRoomId) {
@@ -43,10 +60,12 @@ const Chat: React.FC = () => {
         const { data: usersList, error } = await supabase
           .from("profiles")
           .select("id, full_name, avatar_url")
-          .neq("role", "admin");
+          .eq("role", "user");
         
-        if (!error) {
-          setUsers(usersList || []);
+        if (!error && usersList) {
+          setUsers(usersList);
+        } else {
+          console.error("Error fetching users:", error);
         }
       } else {
         // If regular user, fetch admins they can message

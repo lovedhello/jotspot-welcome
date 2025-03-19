@@ -9,6 +9,7 @@ import { ChatMessage, ChatRoom, ChatUser } from "@/types/chat";
 import { fetchChatMessages, sendChatMessage, subscribeToMessages, getChatUser } from "@/services/chatService";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
+import { useAdmin } from "@/hooks/use-admin";
 
 interface ChatRoomProps {
   room: ChatRoom;
@@ -22,6 +23,7 @@ const ChatRoomComponent: React.FC<ChatRoomProps> = ({ room }) => {
   const [users, setUsers] = useState<Record<string, ChatUser | null>>({});
   const [chatPartner, setChatPartner] = useState<ChatUser | null>(null);
   const { user } = useAuth();
+  const { isAdmin } = useAdmin();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -39,10 +41,19 @@ const ChatRoomComponent: React.FC<ChatRoomProps> = ({ room }) => {
         
         // Determine chat partner
         if (user) {
-          const partnerId = room.created_by === user.id ? room.created_for : room.created_by;
+          // If admin, the partner is created_by or created_for, whichever is not the admin
+          // If user, the partner is the admin (which could be either created_by or created_for)
+          const partnerId = isAdmin 
+            ? (room.created_by === user.id ? room.created_for : room.created_by)
+            : (room.created_by === user.id ? room.created_for : room.created_by);
+          
           if (partnerId) {
-            const partnerData = await getChatUser(partnerId);
-            setChatPartner(partnerData);
+            try {
+              const partnerData = await getChatUser(partnerId);
+              setChatPartner(partnerData);
+            } catch (error) {
+              console.error("Error fetching chat partner:", error);
+            }
           }
         }
       } catch (error) {
@@ -58,14 +69,19 @@ const ChatRoomComponent: React.FC<ChatRoomProps> = ({ room }) => {
     };
     
     loadMessages();
-  }, [room.id, user]);
+  }, [room.id, user, isAdmin]);
 
   // Helper function to load user data
   const loadUserData = async (userIds: string[]) => {
     try {
       const userPromises = userIds.map(async (id) => {
-        const userData = await getChatUser(id);
-        return { id, data: userData };
+        try {
+          const userData = await getChatUser(id);
+          return { id, data: userData };
+        } catch (error) {
+          console.error(`Error fetching user ${id}:`, error);
+          return { id, data: null };
+        }
       });
       
       const userResults = await Promise.all(userPromises);
@@ -90,11 +106,15 @@ const ChatRoomComponent: React.FC<ChatRoomProps> = ({ room }) => {
       
       // Fetch user info if we don't have it yet
       if (!users[newMessage.user_id]) {
-        const userData = await getChatUser(newMessage.user_id);
-        setUsers(prev => ({
-          ...prev,
-          [newMessage.user_id]: userData
-        }));
+        try {
+          const userData = await getChatUser(newMessage.user_id);
+          setUsers(prev => ({
+            ...prev,
+            [newMessage.user_id]: userData
+          }));
+        } catch (error) {
+          console.error(`Error fetching user ${newMessage.user_id}:`, error);
+        }
       }
     });
     
