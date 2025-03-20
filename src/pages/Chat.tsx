@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React from "react";
 import ChatWidget from "@/components/chat/ChatWidget";
 
 const ChatPage: React.FC = () => {
@@ -20,7 +20,8 @@ const ChatPage: React.FC = () => {
         </ul>
       </div>
       
-      {/* Chat widget is rendered at the App level */}
+      {/* The chat widget should be rendered at the App level, but we'll also include it here to ensure it's visible */}
+      <ChatWidget />
     </div>
   );
 };

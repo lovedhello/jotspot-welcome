@@ -20,6 +20,7 @@ import Cart from "./pages/Cart";
 import Chat from "./pages/Chat";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
+import ChatWidget from "@/components/chat/ChatWidget";
 
 const queryClient = new QueryClient();
 
@@ -48,6 +49,8 @@ const App = () => (
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
+            {/* Render the chat widget at the app level so it's available on all pages */}
+            <ChatWidget />
           </CartProvider>
         </AuthProvider>
       </BrowserRouter>
