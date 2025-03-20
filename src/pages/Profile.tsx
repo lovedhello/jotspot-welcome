@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
@@ -140,7 +141,7 @@ const Profile = () => {
         .update({
           full_name: fullName,
           avatar_url: newAvatarUrl,
-          updated_at: new Date(),
+          updated_at: new Date().toISOString(), // Fix: Convert Date to ISO string
         })
         .eq('id', user.id);
 

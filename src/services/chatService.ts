@@ -28,11 +28,14 @@ const createTestAdminIfNeeded = async () => {
         .from("profiles")
         .select("*")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
         
       if (profileError) {
         console.error("Error checking user profile:", profileError);
-        
+        return;
+      }
+      
+      if (!userProfile) {
         // Create a profile for the user if it doesn't exist
         const { error: insertError } = await supabase
           .from("profiles")
@@ -47,8 +50,8 @@ const createTestAdminIfNeeded = async () => {
         } else {
           console.log("Created admin profile for testing");
         }
-      } else if (userProfile) {
-        // Update existing profile to admin role
+      } else if (userProfile.role !== 'admin') {
+        // Update existing profile to admin role only if not already admin
         const { error: updateError } = await supabase
           .from("profiles")
           .update({ role: 'admin' })
@@ -59,8 +62,12 @@ const createTestAdminIfNeeded = async () => {
         } else {
           console.log("Updated user to admin role for testing");
         }
+      } else {
+        console.log("User is already an admin, no changes needed");
       }
     }
+  } else {
+    console.log("Admins already exist, no need to create test admin");
   }
 };
 
