@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { ChatRoom, ChatMessage, ChatUser } from "@/types/chat";
 
@@ -297,12 +296,11 @@ export const sendChatMessage = async (roomId: string, content: string): Promise<
 };
 
 export const getChatUser = async (userId: string): Promise<ChatUser | null> => {
-  // Use maybeSingle() instead of single() to handle non-existent users
   const { data, error } = await supabase
     .from("profiles")
     .select("id, full_name, avatar_url, role")
     .eq("id", userId)
-    .maybeSingle();
+    .single();
 
   if (error) {
     console.error("Error fetching user:", error);
