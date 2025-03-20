@@ -14,11 +14,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { MessageCircle, SendIcon, X, Smile, Paperclip, ChevronDown } from "lucide-react";
+import { MessageCircle, SendIcon, X, Smile, Paperclip, ChevronDown, Users } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useAdmin } from "@/hooks/use-admin";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import ChatRoomList from "./ChatRoomList";
+import data from "@emoji-mart/data";
+import Picker from "@emoji-mart/react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface ChatWidgetProps {
   initialOpen?: boolean;
@@ -26,22 +29,25 @@ interface ChatWidgetProps {
 
 const ChatWidget: React.FC<ChatWidgetProps> = ({ initialOpen = false }) => {
   const [isOpen, setIsOpen] = useState(initialOpen);
-  const [isMinimized, setIsMinimized] = useState(!initialOpen);
+  const [isMinimized, setIsMinimized] = useState(false);
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [admins, setAdmins] = useState<ChatUser[]>([]);
   const [users, setUsers] = useState<ChatUser[]>([]);
+  const [showAdminSelection, setShowAdminSelection] = useState(false);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [userMap, setUserMap] = useState<Record<string, ChatUser | null>>({});
-
-  const { user } = useAuth();
-  const { isAdmin } = useAdmin();
+  const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
+  const { user } = useAuth();
+  const { isAdmin } = useAdmin();
+
   // Get active room
   const activeRoom = rooms.find(room => room.id === activeRoomId);
 
@@ -60,22 +66,22 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ initialOpen = false }) => {
           room.created_by === user.id || room.created_for === user.id
         );
         setRooms(userRooms);
+        
+        // Load admins for regular users
+        const adminsList = await fetchAdmins();
+        console.log("Fetched admins in loadRooms:", adminsList);
+        setAdmins(adminsList);
       } else {
         // For admins, show all rooms
         setRooms(fetchedRooms);
-      }
-      
-      // Load appropriate contacts
-      if (isAdmin) {
+        
+        // Load users for admins
         const usersList = await fetchUsers();
         setUsers(usersList);
-      } else {
-        const adminsList = await fetchAdmins();
-        setAdmins(adminsList);
       }
       
-      // Auto-select first room if available
-      if (fetchedRooms.length > 0 && !activeRoomId) {
+      // Auto-select first room if available and not showing admin selection
+      if (fetchedRooms.length > 0 && !activeRoomId && !showAdminSelection) {
         const firstRoom = isAdmin 
           ? fetchedRooms[0]
           : fetchedRooms.filter(room => room.created_by === user.id || room.created_for === user.id)[0];
@@ -129,6 +135,13 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ initialOpen = false }) => {
     setUserMap(prev => ({ ...prev, ...newUserMap }));
   };
   
+  // Reset admin selection when room changes
+  useEffect(() => {
+    if (activeRoomId) {  // Only reset when activeRoomId is set to a valid ID
+      setShowAdminSelection(false);
+    }
+  }, [activeRoomId]);
+
   // Effect to load rooms when user changes
   useEffect(() => {
     if (user) {
@@ -237,136 +250,244 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ initialOpen = false }) => {
     }
   }, [initialOpen]);
   
+  const handleEmojiSelect = (emoji: any) => {
+    setMessage(prev => prev + emoji.native);
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || !files.length || !activeRoomId) return;
+
+    const file = files[0];
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB limit
+    
+    if (file.size > MAX_FILE_SIZE) {
+      toast({
+        variant: "destructive",
+        title: "File too large",
+        description: "Please select a file smaller than 5MB",
+      });
+      return;
+    }
+
+    try {
+      // Create a FormData object to send the file
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      // TODO: Implement file upload functionality
+      toast({
+        title: "Coming soon!",
+        description: "File attachment functionality will be available soon.",
+      });
+      
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Failed to upload file",
+        description: "Please try again.",
+      });
+    }
+    
+    // Clear the input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+  
   if (!user) {
     return null; // Don't show chat widget for logged out users
   }
   
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
-      {/* Main Chat Window */}
-      {isOpen && !isMinimized && (
-        <div className="bg-white rounded-lg shadow-xl mb-4 w-[350px] h-[500px] flex flex-col overflow-hidden">
-          {!activeRoomId ? (
-            <ChatRoomList
-              rooms={rooms}
-              activeRoomId={activeRoomId}
-              onRoomSelect={setActiveRoomId}
-              onRoomsUpdated={loadRooms}
-              admins={admins}
-              onClose={closeChat}
-            />
-          ) : (
+    <div className="fixed bottom-4 right-4 flex flex-col items-end space-y-4 z-50">
+      {isOpen && (
+        <div
+          className={`bg-white rounded-lg shadow-xl overflow-hidden transition-all duration-200 ease-in-out ${
+            isMinimized ? "w-0 h-0" : "w-96 h-[600px]"
+          }`}
+        >
+          {!isMinimized && (
             <>
-              {/* Chat Header */}
-              <div className="p-3 bg-[#9b87f5] text-white flex items-center justify-between">
-                <div className="flex items-center">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="text-white hover:bg-[#8e75e6] mr-1 h-8 w-8 p-0" 
-                    onClick={() => setActiveRoomId(null)}
-                  >
-                    <ChevronDown className="h-5 w-5" />
-                  </Button>
-                  <span className="font-medium">{activeRoom?.name || "Chat"}</span>
-                </div>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="text-white hover:bg-[#8e75e6] h-8 w-8"
-                  onClick={closeChat}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              
-              {/* Message List */}
-              <ScrollArea className="flex-1 p-3">
-                {messages.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full text-center p-4">
-                    <MessageCircle className="h-12 w-12 text-[#9b87f5] mb-2 opacity-50" />
-                    <p className="text-sm text-gray-500">
-                      No messages yet. Start the conversation!
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {messages.map((msg) => {
-                      const isOwnMessage = msg.user_id === user.id;
-                      const messageUser = userMap[msg.user_id];
-                      
-                      return (
-                        <div 
-                          key={msg.id} 
-                          className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
+              {activeRoomId ? (
+                <>
+                  {/* Chat Header */}
+                  <div className="p-3 bg-[#9b87f5] text-white flex items-center justify-between">
+                    <div className="flex items-center">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="text-white hover:bg-[#8e75e6] mr-1 h-8 w-8 p-0" 
+                        onClick={() => setActiveRoomId(null)}
+                      >
+                        <ChevronDown className="h-5 w-5" />
+                      </Button>
+                      <span className="font-medium">{activeRoom?.name || "Chat"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {!isAdmin && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-white hover:bg-[#8e75e6] h-8 w-8"
+                          onClick={async () => {
+                            setShowAdminSelection(true);
+                            setActiveRoomId(null);
+                            // Reload admin list
+                            try {
+                              const adminsList = await fetchAdmins();
+                              setAdmins(adminsList);
+                            } catch (error) {
+                              console.error("Error fetching admins:", error);
+                              toast({
+                                variant: "destructive",
+                                title: "Failed to load admins",
+                                description: "Please try again.",
+                              });
+                            }
+                          }}
+                          title="Switch Admin"
                         >
-                          {!isOwnMessage && (
-                            <Avatar className="h-8 w-8 mr-2 flex-shrink-0">
-                              <AvatarImage 
-                                src={messageUser?.avatar_url || ""} 
-                                alt={messageUser?.full_name || "User"} 
-                              />
-                              <AvatarFallback className="bg-[#7e69ab] text-white text-xs">
-                                {getInitials(messageUser?.full_name)}
-                              </AvatarFallback>
-                            </Avatar>
-                          )}
-                          
-                          <div className={`max-w-[75%] ${isOwnMessage ? 'order-1' : 'order-2'}`}>
-                            <div 
-                              className={`px-3 py-2 rounded-lg ${
-                                isOwnMessage 
-                                  ? 'bg-[#9b87f5] text-white rounded-br-none' 
-                                  : 'bg-gray-100 rounded-bl-none'
-                              }`}
-                            >
-                              {msg.content}
-                            </div>
-                            <div 
-                              className={`text-xs text-gray-500 mt-1 ${
-                                isOwnMessage ? 'text-right' : 'text-left'
-                              }`}
-                            >
-                              {formatMessageTime(msg.created_at)}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    <div ref={messagesEndRef} />
+                          <Users className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="text-white hover:bg-[#8e75e6] h-8 w-8"
+                        onClick={closeChat}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                )}
-              </ScrollArea>
-              
-              {/* Message Input */}
-              <div className="p-3 border-t">
-                <div className="flex items-end gap-2">
-                  <Textarea
-                    placeholder="Type your message..."
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    onKeyDown={handleKeyPress}
-                    className="flex-1 min-h-[60px] resize-none"
-                    ref={textareaRef}
-                  />
-                  <Button 
-                    onClick={handleSendMessage} 
-                    disabled={!message.trim() || isSending} 
-                    size="icon"
-                    className="bg-[#9b87f5] hover:bg-[#8e75e6] text-white h-10 w-10"
-                  >
-                    <SendIcon className="h-5 w-5" />
-                  </Button>
-                </div>
-                <div className="flex items-center mt-2 text-gray-400">
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <Smile className="h-5 w-5" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <Paperclip className="h-5 w-5" />
-                  </Button>
-                </div>
-              </div>
+                  
+                  {/* Message List */}
+                  <ScrollArea className="flex-1 p-3">
+                    {messages.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-full text-center p-4">
+                        <MessageCircle className="h-12 w-12 text-[#9b87f5] mb-2 opacity-50" />
+                        <p className="text-sm text-gray-500">
+                          No messages yet. Start the conversation!
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {messages.map((msg) => {
+                          const isOwnMessage = msg.user_id === user.id;
+                          const messageUser = userMap[msg.user_id];
+                          
+                          return (
+                            <div 
+                              key={msg.id} 
+                              className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
+                            >
+                              {!isOwnMessage && (
+                                <Avatar className="h-8 w-8 mr-2 flex-shrink-0">
+                                  <AvatarImage 
+                                    src={messageUser?.avatar_url || ""} 
+                                    alt={messageUser?.full_name || "User"} 
+                                  />
+                                  <AvatarFallback className="bg-[#7e69ab] text-white text-xs">
+                                    {getInitials(messageUser?.full_name)}
+                                  </AvatarFallback>
+                                </Avatar>
+                              )}
+                              
+                              <div className={`max-w-[75%] ${isOwnMessage ? 'order-1' : 'order-2'}`}>
+                                <div 
+                                  className={`px-3 py-2 rounded-lg ${
+                                    isOwnMessage 
+                                      ? 'bg-[#9b87f5] text-white rounded-br-none' 
+                                      : 'bg-gray-100 rounded-bl-none'
+                                  }`}
+                                >
+                                  {msg.content}
+                                </div>
+                                <div 
+                                  className={`text-xs text-gray-500 mt-1 ${
+                                    isOwnMessage ? 'text-right' : 'text-left'
+                                  }`}
+                                >
+                                  {formatMessageTime(msg.created_at)}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        <div ref={messagesEndRef} />
+                      </div>
+                    )}
+                  </ScrollArea>
+                  
+                  {/* Message Input */}
+                  <div className="p-3 border-t">
+                    <div className="flex items-end gap-2">
+                      <Textarea
+                        placeholder="Type your message..."
+                        value={message}
+                        onChange={(e) => setMessage(e.target.value)}
+                        onKeyDown={handleKeyPress}
+                        className="flex-1 min-h-[60px] resize-none"
+                        ref={textareaRef}
+                      />
+                      <Button 
+                        onClick={handleSendMessage} 
+                        disabled={!message.trim() || isSending} 
+                        size="icon"
+                        className="bg-[#9b87f5] hover:bg-[#8e75e6] text-white h-10 w-10"
+                      >
+                        <SendIcon className="h-5 w-5" />
+                      </Button>
+                    </div>
+                    <div className="flex items-center mt-2 text-gray-400">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <Smile className="h-5 w-5" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Picker
+                            data={data}
+                            onEmojiSelect={handleEmojiSelect}
+                            theme="light"
+                            set="native"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <Paperclip className="h-5 w-5" />
+                      </Button>
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        className="hidden"
+                        onChange={handleFileSelect}
+                        accept="image/*,.pdf,.doc,.docx,.txt"
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <ChatRoomList
+                  rooms={rooms}
+                  activeRoomId={activeRoomId}
+                  onRoomSelect={setActiveRoomId}
+                  onRoomsUpdated={loadRooms}
+                  admins={admins}
+                  onClose={closeChat}
+                  showAdminSelection={showAdminSelection}
+                />
+              )}
             </>
           )}
         </div>

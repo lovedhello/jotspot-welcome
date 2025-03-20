@@ -1,78 +1,46 @@
 import { supabase } from "@/integrations/supabase/client";
 import { ChatRoom, ChatMessage, ChatUser } from "@/types/chat";
 
-// Helper function to create an admin profile for testing if none exists
-const createTestAdminIfNeeded = async () => {
-  // Check if any admin exists
+// Helper function to check if any admin profile exists
+const checkForExistingAdmins = async () => {
   const { data: existingAdmins, error: checkError } = await supabase
     .from("profiles")
-    .select("id, full_name, avatar_url")
+    .select("id")
     .eq("role", "admin")
     .limit(1);
-    
+
   if (checkError) {
     console.error("Error checking for existing admins:", checkError);
-    return;
+    return false;
   }
-  
-  // If no admins found, create a test admin
-  if (!existingAdmins || existingAdmins.length === 0) {
-    console.log("No admins found, creating a test admin...");
-    
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (user) {
-      // Check if the user has a profile
-      const { data: userProfile, error: profileError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .maybeSingle();
-        
-      if (profileError) {
-        console.error("Error checking user profile:", profileError);
-        return;
-      }
-      
-      if (!userProfile) {
-        // Create a profile for the user if it doesn't exist
-        const { error: insertError } = await supabase
-          .from("profiles")
-          .insert({
-            id: user.id,
-            full_name: user.email?.split('@')[0] || 'Test Admin',
-            role: 'admin'
-          });
-          
-        if (insertError) {
-          console.error("Error creating admin profile:", insertError);
-        } else {
-          console.log("Created admin profile for testing");
-        }
-      } else if (userProfile.role !== 'admin') {
-        // Update existing profile to admin role only if not already admin
-        const { error: updateError } = await supabase
-          .from("profiles")
-          .update({ role: 'admin' })
-          .eq("id", user.id);
-          
-        if (updateError) {
-          console.error("Error updating to admin role:", updateError);
-        } else {
-          console.log("Updated user to admin role for testing");
-        }
-      } else {
-        console.log("User is already an admin, no changes needed");
-      }
-    }
-  } else {
-    console.log("Admins already exist, no need to create test admin");
-  }
+
+  return existingAdmins && existingAdmins.length > 0;
 };
 
+interface ChatRoomWithProfiles extends ChatRoom {
+  created_by_profile: ChatUser;
+  created_for_profile: ChatUser;
+}
+
 export const fetchChatRooms = async (): Promise<ChatRoom[]> => {
-  const { data, error } = await supabase
+  // Get current user
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("User must be logged in");
+
+  // Get current user's role
+  const { data: currentUserProfile, error: profileError } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (profileError) {
+    console.error("Error fetching user profile:", profileError);
+    throw profileError;
+  }
+
+  // First fetch the rooms
+  const { data: rooms, error } = await supabase
     .from("chat_rooms")
     .select("*")
     .order("created_at", { ascending: false });
@@ -82,17 +50,84 @@ export const fetchChatRooms = async (): Promise<ChatRoom[]> => {
     throw error;
   }
 
-  return data || [];
+  // Then fetch all relevant user profiles
+  const userIds = new Set(
+    (rooms || []).flatMap(room => [room.created_by, room.created_for])
+      .filter(id => id !== null && id !== undefined) // Filter out null/undefined IDs
+  );
+
+  // If there are no valid user IDs, return empty rooms array
+  if (userIds.size === 0) {
+    return [];
+  }
+
+  const { data: profiles, error: profilesError } = await supabase
+    .from("profiles")
+    .select("id, full_name, role")
+    .in("id", Array.from(userIds));
+
+  if (profilesError) {
+    console.error("Error fetching profiles:", profilesError);
+    throw profilesError;
+  }
+
+  // Create a map of user profiles for easy lookup
+  const profileMap = (profiles || []).reduce((acc, profile) => {
+    acc[profile.id] = profile;
+    return acc;
+  }, {} as Record<string, ChatUser>);
+
+  if (error) {
+    console.error("Error fetching chat rooms:", error);
+    throw error;
+  }
+
+  // Transform the rooms with appropriate names
+  const transformedRooms = (rooms || []).map(room => {
+    const isAdmin = currentUserProfile.role === 'admin';
+    const otherUserId = room.created_by === user.id ? room.created_for : room.created_by;
+    
+    // Skip rooms where the other user ID is null
+    if (!otherUserId) {
+      return room;
+    }
+
+    const otherUser = profileMap[otherUserId];
+
+    if (!otherUser) {
+      console.error(`Could not find profile for user ${otherUserId}`);
+      return room;
+    }
+
+    // Always show the other person's name
+    if (isAdmin) {
+      // Admin is viewing: show the user's name
+      room.name = otherUser.full_name || 'User';
+    } else {
+      // User is viewing: show the admin's name
+      if (otherUser.role === 'admin') {
+        room.name = otherUser.full_name || 'Admin';
+      } else {
+        room.name = 'Support Chat';
+      }
+    }
+
+    return room;
+  });
+
+  return transformedRooms
 };
 
 export const fetchAdmins = async (): Promise<ChatUser[]> => {
-  // Create a test admin if none exists
-  await createTestAdminIfNeeded();
-  
-  // Use a more robust query to fetch admins
+  // Check for existing admins without creating a test admin
+  const hasAdmins = await checkForExistingAdmins();
+  if (!hasAdmins) {
+    console.log("No admins found in checkForExistingAdmins");
+  }
+
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, full_name, avatar_url")
+    .select("id, full_name, avatar_url, role")
     .eq("role", "admin");
 
   if (error) {
@@ -100,16 +135,23 @@ export const fetchAdmins = async (): Promise<ChatUser[]> => {
     throw error;
   }
 
-  console.log("Fetched admins:", data);
+  console.log("Fetched admins in fetchAdmins:", {
+    count: data?.length,
+    admins: data?.map(admin => ({
+      id: admin.id,
+      full_name: admin.full_name,
+      role: admin.role
+    }))
+  });
+  
   return data || [];
 };
 
 export const fetchUsers = async (): Promise<ChatUser[]> => {
-  // Add a new function to fetch regular users
+  // Fetch all profiles regardless of role
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, full_name, avatar_url")
-    .eq("role", "user");
+    .select("id, full_name, avatar_url, role");
 
   if (error) {
     console.error("Error fetching users:", error);
@@ -133,9 +175,7 @@ export const createDirectMessageRoom = async (
   const { data: existingChats, error: checkError } = await supabase
     .from("chat_rooms")
     .select("*")
-    .or(`created_by.eq.${user.id},created_for.eq.${user.id}`)
-    .or(`created_by.eq.${adminId},created_for.eq.${adminId}`)
-    .limit(1);
+    .or(`and(created_by.eq.${user.id},created_for.eq.${adminId}),and(created_by.eq.${adminId},created_for.eq.${user.id})`);
 
   if (checkError) {
     console.error("Error checking existing chats:", checkError);
@@ -148,20 +188,37 @@ export const createDirectMessageRoom = async (
   }
 
   // If no existing chat, create a new one
-  let roomName = '';
-  let createdBy = '';
-  let createdFor = '';
-  
-  if (isAdminCreating) {
-    // Admin creating chat with user
-    roomName = `Admin Support`;
-    createdBy = user.id;
-    createdFor = adminId; // actually the user ID in this context
+  let createdBy = user.id;
+  let createdFor = adminId;
+
+  // Get both user profiles to set appropriate names
+  const { data: profiles, error: profileError } = await supabase
+    .from('profiles')
+    .select('id, full_name, role')
+    .in('id', [user.id, adminId]);
+
+  if (profileError) {
+    console.error('Error fetching profiles:', profileError);
+    throw profileError;
+  }
+
+  const currentUserProfile = profiles.find(p => p.id === user.id);
+  const otherUserProfile = profiles.find(p => p.id === adminId);
+
+  if (!currentUserProfile || !otherUserProfile) {
+    throw new Error('Could not find user profiles');
+  }
+
+  // Set room name based on who's creating it
+  let roomName;
+  if (currentUserProfile.role === 'admin') {
+    // Admin is creating: show the user's name
+    roomName = otherUserProfile.full_name || 'User';
   } else {
-    // User creating chat with admin
-    roomName = `Admin Support`;
-    createdBy = user.id;
-    createdFor = adminId;
+    // User is creating: show the admin's name
+    roomName = otherUserProfile.role === 'admin' ? 
+      (otherUserProfile.full_name || 'Admin') : 
+      'Support Chat';
   }
   
   const { data, error } = await supabase
@@ -300,7 +357,7 @@ export const getChatUser = async (userId: string): Promise<ChatUser | null> => {
     .from("profiles")
     .select("id, full_name, avatar_url, role")
     .eq("id", userId)
-    .single();
+    .maybeSingle();  // Use maybeSingle() instead of single() to handle not found case gracefully
 
   if (error) {
     console.error("Error fetching user:", error);

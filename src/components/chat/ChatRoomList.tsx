@@ -1,11 +1,10 @@
-
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PlusCircle, MessageCircle, X } from "lucide-react";
-import { ChatRoom } from "@/types/chat";
+import { ChatRoom, ChatUser } from "@/types/chat";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { createChatRoom } from "@/services/chatService";
+import { createDirectMessageRoom, createGeneralSupportRoom } from "@/services/chatService";
 import { toast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
@@ -14,8 +13,9 @@ interface ChatRoomListProps {
   activeRoomId: string | null;
   onRoomSelect: (roomId: string) => void;
   onRoomsUpdated: () => void;
-  admins: any[];
+  admins: ChatUser[];
   onClose?: () => void;
+  showAdminSelection?: boolean;
 }
 
 const ChatRoomList: React.FC<ChatRoomListProps> = ({
@@ -25,9 +25,25 @@ const ChatRoomList: React.FC<ChatRoomListProps> = ({
   onRoomsUpdated,
   admins,
   onClose,
+  showAdminSelection = false,
 }) => {
   const [newRoomName, setNewRoomName] = React.useState("");
   const [isCreatingRoom, setIsCreatingRoom] = React.useState(false);
+
+  // Debug log for admins and conditions
+  React.useEffect(() => {
+    console.log("ChatRoomList render state:", {
+      admins,
+      showAdminSelection,
+      roomsLength: rooms.length,
+      shouldShowAdminList: rooms.length === 0 || showAdminSelection
+    });
+  }, [admins, showAdminSelection, rooms]);
+
+  // Debug log for admins
+  React.useEffect(() => {
+    console.log("ChatRoomList admins:", admins);
+  }, [admins]);
 
   const handleCreateRoom = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,8 +51,8 @@ const ChatRoomList: React.FC<ChatRoomListProps> = ({
     
     try {
       setIsCreatingRoom(true);
-      // Use the exported createChatRoom function
-      await createChatRoom(newRoomName);
+      // Use the exported createDirectMessageRoom function
+      await createDirectMessageRoom(newRoomName);
       setNewRoomName("");
       onRoomsUpdated();
       toast({
@@ -57,13 +73,21 @@ const ChatRoomList: React.FC<ChatRoomListProps> = ({
   const handleStartChat = async (adminId?: string) => {
     try {
       setIsCreatingRoom(true);
+      let newRoom;
+      
       // If no admins are available, create a general support chat
       if (!adminId) {
-        await createChatRoom("Support Chat");
+        newRoom = await createGeneralSupportRoom();
       } else {
-        await createChatRoom(adminId);
+        newRoom = await createDirectMessageRoom(adminId);
       }
-      onRoomsUpdated();
+      
+      // Refresh the rooms list
+      await onRoomsUpdated();
+      
+      // Set the active room to the newly created room
+      onRoomSelect(newRoom.id);
+      
       toast({
         title: "Chat started",
         description: "Your support chat has been created."
@@ -117,15 +141,16 @@ const ChatRoomList: React.FC<ChatRoomListProps> = ({
           Typically replies within 1 minute
         </p>
         <div className="flex -space-x-4 my-3">
-          {admins.slice(0, 3).map((admin, index) => (
-            <Avatar key={admin.id || index} className="border-2 border-[#8e75e6]">
-              <AvatarImage src={admin.avatar_url || ""} alt={admin.full_name || "Admin"} />
-              <AvatarFallback className="bg-[#7e69ab] text-white">
-                {getInitials(admin.full_name)}
-              </AvatarFallback>
-            </Avatar>
-          ))}
-          {admins.length === 0 && (
+          {admins && admins.length > 0 ? (
+            admins.slice(0, 3).map((admin, index) => (
+              <Avatar key={admin.id || index} className="border-2 border-[#8e75e6]">
+                <AvatarImage src={admin.avatar_url || ""} alt={admin.full_name || "Admin"} />
+                <AvatarFallback className="bg-[#7e69ab] text-white">
+                  {getInitials(admin.full_name)}
+                </AvatarFallback>
+              </Avatar>
+            ))
+          ) : (
             <Avatar className="border-2 border-[#8e75e6]">
               <AvatarFallback className="bg-[#7e69ab] text-white">
                 AD
@@ -142,11 +167,11 @@ const ChatRoomList: React.FC<ChatRoomListProps> = ({
       
       <ScrollArea className="flex-1 px-3 py-2">
         <div className="space-y-2">
-          {rooms.length === 0 ? (
+          {(rooms.length === 0 || showAdminSelection) ? (
             <div className="text-center p-4 bg-white/10 rounded-lg">
               <p>Start a conversation with an admin</p>
               <div className="mt-3 space-y-2">
-                {admins.length > 0 ? (
+                {admins && admins.length > 0 ? (
                   admins.map(admin => (
                     <Button
                       key={admin.id}
