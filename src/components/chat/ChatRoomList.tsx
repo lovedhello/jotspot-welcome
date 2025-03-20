@@ -54,12 +54,22 @@ const ChatRoomList: React.FC<ChatRoomListProps> = ({
     }
   };
 
-  const handleStartChat = async (adminId: string) => {
+  const handleStartChat = async (adminId?: string) => {
     try {
       setIsCreatingRoom(true);
-      await createChatRoom(adminId);
+      // If no admins are available, create a general support chat
+      if (!adminId) {
+        await createChatRoom("Support Chat");
+      } else {
+        await createChatRoom(adminId);
+      }
       onRoomsUpdated();
+      toast({
+        title: "Chat started",
+        description: "Your support chat has been created."
+      });
     } catch (error) {
+      console.error("Error starting chat:", error);
       toast({
         variant: "destructive",
         title: "Failed to start chat",
@@ -136,25 +146,36 @@ const ChatRoomList: React.FC<ChatRoomListProps> = ({
             <div className="text-center p-4 bg-white/10 rounded-lg">
               <p>Start a conversation with an admin</p>
               <div className="mt-3 space-y-2">
-                {admins.map(admin => (
-                  <Button
-                    key={admin.id}
-                    variant="outline"
-                    className="w-full justify-start border-white/30 text-white hover:bg-white/20"
-                    onClick={() => handleStartChat(admin.id)}
-                    disabled={isCreatingRoom}
-                  >
-                    <Avatar className="h-6 w-6 mr-2">
-                      <AvatarImage src={admin.avatar_url || ""} alt={admin.full_name || "Admin"} />
-                      <AvatarFallback className="bg-[#7e69ab] text-white text-xs">
-                        {getInitials(admin.full_name)}
-                      </AvatarFallback>
-                    </Avatar>
-                    {admin.full_name || "Admin"}
-                  </Button>
-                ))}
-                {admins.length === 0 && (
-                  <p className="text-center text-white/70 text-sm">No admins available right now</p>
+                {admins.length > 0 ? (
+                  admins.map(admin => (
+                    <Button
+                      key={admin.id}
+                      variant="outline"
+                      className="w-full justify-start border-white/30 text-white hover:bg-white/20"
+                      onClick={() => handleStartChat(admin.id)}
+                      disabled={isCreatingRoom}
+                    >
+                      <Avatar className="h-6 w-6 mr-2">
+                        <AvatarImage src={admin.avatar_url || ""} alt={admin.full_name || "Admin"} />
+                        <AvatarFallback className="bg-[#7e69ab] text-white text-xs">
+                          {getInitials(admin.full_name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      {admin.full_name || "Admin"}
+                    </Button>
+                  ))
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-center text-white/70 text-sm mb-2">No admins available right now</p>
+                    <Button
+                      variant="outline"
+                      className="w-full border-white/30 text-white hover:bg-white/20"
+                      onClick={() => handleStartChat()}
+                      disabled={isCreatingRoom}
+                    >
+                      Start a general support chat
+                    </Button>
+                  </div>
                 )}
               </div>
             </div>

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { ChatRoom, ChatUser, ChatMessage } from "@/types/chat";
@@ -21,9 +20,13 @@ import { useAdmin } from "@/hooks/use-admin";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import ChatRoomList from "./ChatRoomList";
 
-const ChatWidget: React.FC = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(true);
+interface ChatWidgetProps {
+  initialOpen?: boolean;
+}
+
+const ChatWidget: React.FC<ChatWidgetProps> = ({ initialOpen = false }) => {
+  const [isOpen, setIsOpen] = useState(initialOpen);
+  const [isMinimized, setIsMinimized] = useState(!initialOpen);
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [admins, setAdmins] = useState<ChatUser[]>([]);
   const [users, setUsers] = useState<ChatUser[]>([]);
@@ -225,6 +228,14 @@ const ChatWidget: React.FC = () => {
       handleSendMessage();
     }
   };
+  
+  // Effect for initialOpen prop
+  useEffect(() => {
+    if (initialOpen) {
+      setIsOpen(true);
+      setIsMinimized(false);
+    }
+  }, [initialOpen]);
   
   if (!user) {
     return null; // Don't show chat widget for logged out users
